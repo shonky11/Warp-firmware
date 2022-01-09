@@ -1,6 +1,7 @@
 /*
  *	See https://github.com/adafruit/Adafruit-SSD1331-OLED-Driver-Library-for-Arduino for the Arduino driver.
  */
+#pragma once
 
 typedef enum
 {
@@ -43,3 +44,7 @@ typedef enum
 } SSD1331Commands;
 
 int	devSSD1331init(void);
+int 	writeBuffer(uint8_t* commandBuffer, uint8_t bufferSize);
+int 	writeCommand(uint8_t commandByte);
+int     writePixel(uint16_t commandByte);
+void 	display_speed(int16_t speed, uint16_t distance, uint32_t time);

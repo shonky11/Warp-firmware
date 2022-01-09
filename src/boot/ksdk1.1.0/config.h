@@ -52,7 +52,7 @@
  *	build variant above, we currently require users wanting to build for the
  *	KL03 to manually set this here.
  */
-#define		WARP_BUILD_ENABLE_FRDMKL03			0
+#define		WARP_BUILD_ENABLE_FRDMKL03			1
 
 /*
  *	Force the required configuration if WARP_BUILD_ENABLE_GLAUX_VARIANT is set
@@ -95,12 +95,15 @@
 	#define		WARP_BUILD_ENABLE_DEVICE40		0
 	#define		WARP_BUILD_ENABLE_DEVL3GD20H		0
 	#define		WARP_BUILD_ENABLE_DEVLPS25H		0
+	#define         WARP_BUILD_ENABLE_DEVSSD1331            1
+	#define		WARP_BUILD_ENABLE_DEVINA219		1
 	#define		WARP_BUILD_ENABLE_DEVMAG3110		0
 	#define		WARP_BUILD_ENABLE_DEVMMA8451Q		1
 	#define		WARP_BUILD_ENABLE_DEVRV8803C7		0
 	#define		WARP_BUILD_ENABLE_DEVSI4705		0
 	#define		WARP_BUILD_ENABLE_DEVSI7021		0
 	#define		WARP_BUILD_ENABLE_DEVTCS34725		0
+	#define		WARP_BUILD_ENABLE_DEVPMW3901		1
 #else
 	/*
 	 *	Otherwise: Edit these to set which code paths are activated in the firmware compilation
@@ -119,6 +122,8 @@
 	#define		WARP_BUILD_ENABLE_DEVAT45DB		1
 	#define		WARP_BUILD_ENABLE_DEVICE40		0
 	#define		WARP_BUILD_ENABLE_DEVL3GD20H		0
+        #define         WARP_BUILD_ENABLE_DEVSSD1331            1
+	#define         WARP_BUILD_ENABLE_DEVINA219             1
 	#define		WARP_BUILD_ENABLE_DEVLPS25H		0
 	#define		WARP_BUILD_ENABLE_DEVMAG3110		0
 	#define		WARP_BUILD_ENABLE_DEVMMA8451Q		0
@@ -126,6 +131,7 @@
 	#define		WARP_BUILD_ENABLE_DEVSI4705		0
 	#define		WARP_BUILD_ENABLE_DEVSI7021		0
 	#define		WARP_BUILD_ENABLE_DEVTCS34725		0
+	#define		WARP_BUILD_ENABLE_DEVPMW3901		1
 #endif
 
 typedef enum
@@ -179,6 +185,7 @@ typedef enum
 	kWarpDefaultSupplyVoltageMillivoltsAS7262		= 1800,
 	kWarpDefaultSupplyVoltageMillivoltsAS7263		= 1800,
 	kWarpDefaultSupplyVoltageMillivoltsRV8803C7		= 1800,
+	kWarpDefaultSupplyVoltageMillivoltsINA219		= 1800,
 	kWarpDefaultSupplyVoltageMillivoltsADXL362		= 2400,
 	kWarpDefaultSupplyVoltageMillivoltsIS25xP		= 1800,
 	kWarpDefaultSupplyVoltageMillivoltsISL23415		= 1800,

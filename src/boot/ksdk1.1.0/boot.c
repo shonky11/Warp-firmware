@@ -73,9 +73,18 @@
 	volatile WarpSPIDeviceState			deviceADXL362State;
 #endif
 
+#if (WARP_BUILD_ENABLE_DEVPMW3901)
+        #include "devPMW3901.h"
+        volatile WarpSPIDeviceState                     devicePMW3901State;
+#endif
+
 #if (WARP_BUILD_ENABLE_DEVIS25xP)
 	#include "devIS25xP.h"
 	volatile WarpSPIDeviceState			deviceIS25xPState;
+#endif
+
+#if (WARP_BUILD_ENABLE_SSD1331)
+	#include "devSSD1331.h"
 #endif
 
 #if (WARP_BUILD_ENABLE_DEVISL23415)
@@ -103,6 +112,11 @@
 #if (WARP_BUILD_ENABLE_DEVMMA8451Q)
 	#include "devMMA8451Q.h"
 	volatile WarpI2CDeviceState			deviceMMA8451QState;
+#endif
+
+#if (WARP_BUILD_ENABLE_DEVINA219)
+	#include "devINA219.h"
+	volatile WarpI2CDeviceState			deviceINA219State;
 #endif
 
 #if (WARP_BUILD_ENABLE_DEVLPS25H)
@@ -1605,8 +1619,12 @@ main(void)
 	#endif
 
 	#if (WARP_BUILD_ENABLE_DEVMMA8451Q)
-//		initMMA8451Q(	0x1C	/* i2cAddress */,	&deviceMMA8451QState,		kWarpDefaultSupplyVoltageMillivoltsMMA8451Q	);
-		initMMA8451Q(	0x1C	/* i2cAddress */,		kWarpDefaultSupplyVoltageMillivoltsMMA8451Q	);
+//		initMMA8451Q(	0x1D	/* i2cAddress */,	&deviceMMA8451QState,		kWarpDefaultSupplyVoltageMillivoltsMMA8451Q	);
+		initMMA8451Q(	0x1D	/* i2cAddress */,		kWarpDefaultSupplyVoltageMillivoltsMMA8451Q	);
+	#endif
+
+	#if (WARP_BUILD_ENABLE_DEVINA219)
+    		initINA219(	0x40	/* i2cAddress */,		kWarpDefaultSupplyVoltageMillivoltsINA219	);
 	#endif
 
 	#if (WARP_BUILD_ENABLE_DEVLPS25H)
@@ -1731,6 +1749,16 @@ main(void)
 			warpPrint("ADXL362: DEVID_MST = [0x%02X].\n", deviceADXL362State.spiSinkBuffer[2]);
 		}
 	#endif
+
+	
+        #if (WARP_BUILD_ENABLE_DEVPMW3901)
+                /*
+                 *      Only supported in main Warp variant.
+                 */
+                devPMW3901init();
+        #endif
+
+
 
 	#if (WARP_BUILD_ENABLE_DEVIS25xP && WARP_BUILD_ENABLE_GLAUX_VARIANT)
 		/*
@@ -2017,6 +2045,36 @@ main(void)
 		}
 	#endif
 
+	devSSD1331init(); 			// Initialize Display
+	uint32_t start_time = RTC->TSR;		// Store start time on boot from RTC
+	uint32_t time_elapsed = 0;		// Initialize speed, distance and time variables
+	int16_t time_diff = 0;			// time_diff stores the time difference between subsequent speed readings (needed for integration)
+	int16_t speed = 0;
+	int32_t distance = 0;
+	int16_t distance_km = 0;
+
+	// While on loop, executed after booting.
+	while (1){
+		time_diff = RTC->TSR - time_elapsed - start_time;	// Calculate time difference between subsequent speed readings using RTC
+		time_elapsed = RTC->TSR - start_time;			// Calculate current time elapsed
+		
+		// average the speed over 10 readings for greater accuracy
+		int i = 0;
+		speed = 0;
+		for(i = 0; i < 10; ++i){
+			speed += readMotionX();
+			OSA_TimeDelay(10);	
+		}
+		speed /= 10;
+
+		// Calculate distance by continuously adding the latest average speed * time reading (*1.609 to convert to km)
+		// Then divide by seconds per hour (this is done after in a different variable so as to prevent losing the cumulative distance data.
+		distance += speed * 1609 * time_diff / 1000;
+		distance_km = (int16_t)(distance / 3600);
+		
+		display_speed(speed, distance_km, time_elapsed);	// Speed distance and time are then sent to the display driver to be displayed.
+	}	
+
 	while (1)
 	{
 		/*
@@ -2170,6 +2228,18 @@ main(void)
 					warpPrint("\r\t- 'k' AS7263			(0x00--0x2B): 2.7V -- 3.6V (compiled out) \n");
 				#endif
 
+				#if (WARP_BUILD_ENABLE_DEVINA219)
+    					warpPrint("\r\t- 'l' INA219			(0x00--0x05): 1.95V -- 3.6V\n");
+				#else
+    					warpPrint("\r\t- 'l' INA219			(0x00--0x05): 1.95V -- 3.6V (compiled out) \n");
+				#endif
+
+				#if (WARP_BUILD_ENABLE_DEVPMW3901)
+                                        warpPrint("\r\t- 'm' PMW3901			(0x00--0x5F): 1.95V -- 3.6V\n");
+                                #else
+                                        warpPrint("\r\t- 'm' PMW3901			(0x00--0x5F): 1.95V -- 3.6V (compiled out) \n");
+                                #endif
+
 				warpPrint("\r\tEnter selection> ");
 				key = warpWaitKey();
 
@@ -2319,6 +2389,24 @@ main(void)
 						break;
 					}
 #endif
+					#if (WARP_BUILD_ENABLE_DEVINA219)
+    						case 'l':
+    						{
+        						menuTargetSensor = kWarpSensorINA219;
+        						menuI2cDevice = &deviceINA219State;
+        					break;
+    						}
+					#endif
+
+                                        #if (WARP_BUILD_ENABLE_DEVPMW3901)
+                                                case 'm':
+                                                {
+                                                        menuTargetSensor = kWarpSensorPMW3901;
+                                                        
+                                                break;
+                                                }
+                                        #endif
+
 					default:
 					{
 						warpPrint("\r\tInvalid selection '%c' !\n", key);
@@ -2794,6 +2882,12 @@ printAllSensors(bool printHeadersAndCalibration, bool hexModeFlag, int menuDelay
 	numberOfConfigErrors += configureSensorMMA8451Q(0x00,/* Payload: Disable FIFO */
 					0x01/* Normal read 8bit, 800Hz, normal, active mode */
 					);
+	#if (WARP_BUILD_ENABLE_DEVINA219)
+	uint16_t config_INA219 = (uint16_t)(0x0000 | 0x0000 | 0x0180 | 0x0018 | 0x0007);
+	numberOfConfigErrors += configureSensorINA219(config_INA219,/* Payload: Disable FIFO */
+        		        	0x2000/* Normal read 8bit, 800Hz, normal, active mode */
+        	        		);
+	#endif
 	#endif
 	#if (WARP_BUILD_ENABLE_DEVMAG3110)
 	numberOfConfigErrors += configureSensorMAG3110(	0x00,/*	Payload: DR 000, OS 00, 80Hz, ADC 1280, Full 16bit, standby mode to set up register*/
@@ -2876,6 +2970,14 @@ printAllSensors(bool printHeadersAndCalibration, bool hexModeFlag, int menuDelay
 			warpPrint(" MMA8451 x, MMA8451 y, MMA8451 z,");
 		#endif
 
+		#if (WARP_BUILD_ENABLE_DEVINA219)
+    			warpPrint(" INA219 bus V, INA219 shunt V, INA219 C, INA219 P,");
+		#endif
+
+		#if (WARP_BUILD_ENABLE_DEVPMW3901)
+                        warpPrint(" PMW3901 dX, PMW3901 dY,");
+                #endif
+
 		#if (WARP_BUILD_ENABLE_DEVMAG3110)
 			warpPrint(" MAG3110 x, MAG3110 y, MAG3110 z, MAG3110 Temp,");
 		#endif
@@ -2921,6 +3023,14 @@ printAllSensors(bool printHeadersAndCalibration, bool hexModeFlag, int menuDelay
 		#if (WARP_BUILD_ENABLE_DEVMMA8451Q)
 			printSensorDataMMA8451Q(hexModeFlag);
 		#endif
+
+		#if (WARP_BUILD_ENABLE_DEVINA219)
+    			printSensorDataINA219(hexModeFlag);
+		#endif
+
+		#if (WARP_BUILD_ENABLE_DEVPMW3901)
+                        printSensorDataPMW3901();
+                #endif
 
 		#if (WARP_BUILD_ENABLE_DEVMAG3110)
 			printSensorDataMAG3110(hexModeFlag);
@@ -3163,6 +3273,65 @@ repeatRegisterReadForDeviceAndAddress(WarpSensorDevice warpSensorDevice, uint8_t
 
 			break;
 		}
+
+		case kWarpSensorINA219:
+		{
+		       /*
+		        *	INA219: VDD 1.95--3.6
+		        */
+		    	#if (WARP_BUILD_ENABLE_DEVINA219)
+		        	loopForSensor(	"\r\nINA219:\n\r",		/*	tagString			*/
+		                	&readSensorRegisterINA219,	/*	readSensorRegisterFunction	*/
+			                &deviceINA219State,		/*	i2cDeviceState			*/
+			                NULL,				/*	spiDeviceState			*/
+			                baseAddress,			/*	baseAddress			*/
+		        	        0x00,				/*	minAddress			*/
+			                0x05,				/*	maxAddress			*/
+			                repetitionsPerAddress,		/*	repetitionsPerAddress		*/
+			                chunkReadsPerAddress,		/*	chunkReadsPerAddress		*/
+		        	        spinDelay,			/*	spinDelay			*/
+			                autoIncrement,			/*	autoIncrement			*/
+			                sssupplyMillivolts,		/*	sssupplyMillivolts		*/
+			                referenceByte,			/*	referenceByte			*/
+		        	        adaptiveSssupplyMaxMillivolts,	/*	adaptiveSssupplyMaxMillivolts	*/
+			                chatty				/*	chatty				*/
+			                );
+		   	 #else
+		        	warpPrint("\r\n\tINA219 Read Aborted. Device Disabled :(");
+		    	#endif
+
+		    	break;
+		}
+
+                case kWarpSensorPMW3901:
+                {
+                       /*
+                        *       PMW3901: VDD 3--5
+                        */
+                        #if (WARP_BUILD_ENABLE_DEVPMW3901)
+                                loopForSensor(  "\r\nPMW3901:\n\r",              /*      tagString                       */
+                                        &readSensorRegisterPMW3901,      /*      readSensorRegisterFunction      */
+                                        NULL,             /*      i2cDeviceState                  */
+                                        &devicePMW3901State,                           /*      spiDeviceState                  */
+                                        baseAddress,                    /*      baseAddress                     */
+                                        0x00,                           /*      minAddress                      */
+                                        0x7F,                           /*      maxAddress                      */
+                                        repetitionsPerAddress,          /*      repetitionsPerAddress           */
+                                        chunkReadsPerAddress,           /*      chunkReadsPerAddress            */
+                                        spinDelay,                      /*      spinDelay                       */
+                                        autoIncrement,                  /*      autoIncrement                   */
+                                        sssupplyMillivolts,             /*      sssupplyMillivolts              */
+                                        referenceByte,                  /*      referenceByte                   */
+                                        adaptiveSssupplyMaxMillivolts,  /*      adaptiveSssupplyMaxMillivolts   */
+                                        chatty                          /*      chatty                          */
+                                        );
+                         #else
+                                warpPrint("\r\n\tPMW3901 Read Aborted. Device Disabled :(");
+                        #endif
+
+                        break;
+                }
+
 
 		case kWarpSensorBME680:
 		{
