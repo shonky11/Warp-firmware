@@ -122,3 +122,17 @@ This is a library for the Texas Instruments INA219 Current, Voltage and Power me
 
 ##### `devINA219.h`
 This is the header file for the INA219 driver.
+
+## Acknowledgements
+This project was built on top of the Warp Firmware built by Philip Stanley-Marbell and Martin Rinard.
+
+Phillip Stanley-Marbell and Martin Rinard. “A Hardware Platform for Efficient Multi-Modal Sensing with Adaptive Approximation”. ArXiv e-prints (2018). arXiv:1804.09241.
+
+Phillip Stanley-Marbell and Martin Rinard. “Warp: A Hardware Platform for Efficient Multi-Modal Sensing with Adaptive Approximation”. IEEE Micro, Volume 40 , Issue 1 , Jan.-Feb. 2020.
+
+The equation to calculate the ground velocity from the radial velocity measured by the PMW3901 was taken from Marcus Gried's Master's Thesis
+
+Greiff, M., 2017. Modelling and Control of the Crazyflie Quadrotor for Aggressive and Autonomous Flight by Optical Flow Driven State Estimation. MSc Thesis. Lund University.
+
+And the text writing functionality for the display was adapted from the MBED library below:
+https://os.mbed.com/users/star297/code/ssd1331/
