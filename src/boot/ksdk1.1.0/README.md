@@ -2,7 +2,7 @@
 
 This project for describes the designing, coding and building of a functioning prototype of a bicycle speedometer. It makes use of the Freedom development board with the KL03 microchip and with the Warp Firmware on which this code base is based. It also uses a Pimoroni PMW3901 Optical Flow sensor which measures the velocity of the bike relative to the road, as well as the SSD1331 OLED display to show the speed, time and distance data to the cyclist. The device is designed to be mounted on the handlebars of any bike with the Flow sensor pointed at the road.
 
-## Source File Descriptions
+## Code and Hardware Description
 This project has been adapted from the Warp Firmware project, from which this repository has been forked. It can be found here: https://github.com/physical-computation/Warp-firmware. The full description of all source files can be found there. Only relevant changes have been described below.
 
 
