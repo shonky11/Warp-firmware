@@ -5,6 +5,9 @@ This project for describes the designing, coding and building of a functioning p
 ## Code and Hardware Description
 This project has been adapted from the Warp Firmware project, from which this repository has been forked. It can be found here: https://github.com/physical-computation/Warp-firmware. The full description of all source files can be found there. Only relevant changes have been described below.
 
+![Full Prototype Circuit](https://github.com/shonky11/Warp-firmware/blob/master/Circuit%20with%20labels.png)
+
+![Block Diagram](https://github.com/shonky11/Warp-firmware/blob/master/4B25%20Schematic.png)
 
 ##### `boot.c`
 This is the main file with the core of the firmware and which is run on boot of the Freedom board. It contains the code that is called at runtime, including the boot setup code and the main while loop. It calls upon several other libraries and device drivers. The relevant changes are shown here, where the program for the speedometer runs. A discription of how it works is shown in the comments.
@@ -77,6 +80,8 @@ The wiring for the PMW3901 to the development board is as follows:
 
 The functions `getMotionX()` and `getMotionY()` are called by other programs to get the X and Y velocities in mph * 10 (i.e. 12.4 mph is returned as 124)
 
+![Images of my Pimoroni PMW3901](https://github.com/shonky11/Warp-firmware/blob/master/270549746_327877332386183_326424379567401093_n.jpg)
+
 ##### `devPMW3901.h`
 The header file for the PMW3901 driver.
 
@@ -98,6 +103,11 @@ The wiring for the PMW3901 to the development board is as follows:
 | PTB-0         | Reset              |
 | PTA-12        | DC pin             |
 
+![Images of OLED diplaying speed](https://github.com/shonky11/Warp-firmware/blob/master/270188426_1355565451568680_1188295997622684602_n.jpg)
+
+![Images of OLED diplaying distance](https://github.com/shonky11/Warp-firmware/blob/master/270860052_1294970877674596_5208618013091382899_n.jpg)
+
+![Images of OLED diplaying time](https://github.com/shonky11/Warp-firmware/blob/master/270044366_218357750501230_1896227776930197410_n.jpg)
 
 ##### `devSSD1331.h`
 The header file for the SSD1331 driver.
