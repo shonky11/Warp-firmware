@@ -7,7 +7,40 @@ This project has been adapted from the Warp Firmware project, from which this re
 
 
 ##### `boot.c`
-This is the main file with the core of the firmware and which is run on boot of the Freedom board. It contains the code that is called at runtime, including the boot setup code and the main while loop. It calls upon several other libraries and device drivers.
+This is the main file with the core of the firmware and which is run on boot of the Freedom board. It contains the code that is called at runtime, including the boot setup code and the main while loop. It calls upon several other libraries and device drivers. The relevant changes are shown here, where the program for the speedometer runs. A discription of how it works is shown in the comments.
+
+```C
+	devSSD1331init(); 			// Initialize Display
+	uint32_t start_time = RTC->TSR;		// Store start time on boot from RTC
+	uint32_t time_elapsed = 0;		// Initialize speed, distance and time variables
+	int16_t time_diff = 0;			// time_diff stores the time difference between subsequent speed readings (needed for integration)
+	int16_t speed = 0;
+	int32_t distance = 0;
+	int16_t distance_km = 0;
+
+	// While on loop, executed after booting.
+	while (1){
+		time_diff = RTC->TSR - time_elapsed - start_time;	// Calculate time difference between subsequent speed readings using RTC
+		time_elapsed = RTC->TSR - start_time;			// Calculate current time elapsed
+		
+		// average the speed over 10 readings for greater accuracy
+		int i = 0;
+		speed = 0;
+		for(i = 0; i < 10; ++i){
+			speed += readMotionX();
+			OSA_TimeDelay(10);	
+		}
+		speed /= 10;
+
+		// Calculate distance by continuously adding the latest average speed * time reading (*1.609 to convert to km)
+		// Then divide by seconds per hour (this is done after in a different variable so as to prevent losing the cumulative distance data.
+		distance += speed * 1609 * time_diff / 1000;
+		distance_km = (int16_t)(distance / 3600);
+		
+		display_speed(speed, distance_km, time_elapsed);	// Speed distance and time are then sent to the display driver to be displayed.
+	}	
+
+```
 
 ##### `CMakeLists.txt`
 The 3 new driver files and their header files: 'devSSD1331.c' and 'devSSD1331.h'; 'devPMW3901.c' and 'devPMW3901.h'; and 'devTEXT.c' and 'devTEXT.h' have all been included here to be built by the compiler.
@@ -45,10 +78,34 @@ The wiring for the PMW3901 to the development board is as follows:
 The functions `getMotionX()` and `getMotionY()` are called by other programs to get the X and Y velocities in mph * 10 (i.e. 12.4 mph is returned as 124)
 
 ##### `devPMW3901.h`
-The header file for the PMW3901 driver. It displays data by writing to the various registers of the display driver. The devSSD1331init() function initiaializes the display by writing the necessary values to the configuration and calibration registers of the SSD1331. These values and registers are taken from the datasheet linked below.
+The header file for the PMW3901 driver.
 
 ##### `devSSD1331.c`
-This is the display driver code for the SSD1331 OLED display. It also uses SPI and hence must be written to using a different chip select pin. 
+This is the display driver code for the SSD1331 OLED display. It also uses an SPI connection and hence must be written to using a different chip select pin. It displays data by writing to the various registers of the display driver. The `devSSD1331init()` function initiaializes the display by writing the necessary values to the configuration and calibration registers of the SSD1331. These values and registers are taken from the datasheet linked below. The display is the initialized with a splash screen that displays a bicycle. The function `display_speed()` is used to display the speed, distance and time when passed those parameters. It is passed these parameters in the while loop of boot.c, which in turn come from devPMW3901's `getMotionX()` function. `writeCommand()` writes a value to a register of the display over SPI, and `WriteBuffer()` writes multiple of these values to a group of adjacent registers. `writePixel()` is also writes to the display over SPI, but first sets the DC pin high instead of low which allows indixidual pixels to be set to different colours.
+
+SSD1331 Datasheet: https://cdn-shop.adafruit.com/datasheets/SSD1331_1.2.pdf
+
+This display driver utilizes the `devText` program to write individual characters to the display. This is further described below.
+
+The wiring for the PMW3901 to the development board is as follows:
+| KL03          | PMW3901            |
+|:-------------:|:------------------:|
+| 5v pin        | 3-5v pin           |
+| Gnd           | Gnd                |
+| PTB-11        | Chip Select (CS)   |
+| PTA-9         | SPI Clock (SCK)    |
+| PTA-8         | MOSI pin           |
+| PTB-0         | Reset              |
+| PTA-12        | DC pin             |
+
+
+##### `devSSD1331.h`
+The header file for the SSD1331 driver.
+
+##### `devTEXT.c`
+This is a library I adapted for the Warp Firmware from the MBED library for the SSD1331 written in C++. It uses a font with each character encoded as a 6x8 bit matrix. with a 1 where a pixel is on and 0 where off. The function `PutChar()` places a character at a given x and y coordinate on the screen by itterating over the 6x8 pixel matrix and calling writePixel from the display driver to turn them on. Initially writes to the display were very slow as even pixels that were off were written to set it to the background colour. By changing it to skip these pixels and clear the screen when updating it with new characters, the write speed is significantly optimized. It now writes in about 0.2 seconds which is sufficient for these purposes. I also removed delays from writing chip select to low which significantly improved write time too. `PutChar()` calls `pixel()` to write a particular pixel with a colour. This in turn calls the `writePixel()` function in the driver.
+
+MBED SSD1331 library: https://os.mbed.com/users/star297/code/ssd1331/
 
 ##### `devINA219.c`
 This is a library for the Texas Instruments INA219 Current, Voltage and Power meter which uses an I2C connection. It is included here as it was used to measure the voltage drops and total current draw of the device and its various components.
