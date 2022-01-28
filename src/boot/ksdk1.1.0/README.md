@@ -1,4 +1,7 @@
 # 4B25: Embedded Bike Speedometer
+## Shonak Joshi
+## Queens' College, University of Cambridge
+## CrsID: SJ562
 
 This project for describes the designing, coding and building of a functioning prototype of a bicycle speedometer. It makes use of the Freedom development board with the KL03 microchip and with the Warp Firmware on which this code base is based. It also uses a Pimoroni PMW3901 Optical Flow sensor which measures the velocity of the bike relative to the road, as well as the SSD1331 OLED display to show the speed, time and distance data to the cyclist. The device is designed to be mounted on the handlebars of any bike with the Flow sensor pointed at the road.
 
