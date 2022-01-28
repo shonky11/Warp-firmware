@@ -3,7 +3,7 @@
 ### Queens' College, University of Cambridge
 ### CrsID: SJ562
 
-All relevant files pertaining to this project can be found under ##### `src\boot\ksdk` along with this `README.md`. This project was built atop the Warp Firmware built by Philip Stanley-Marbell and Martin Rinard, referenced below.
+All relevant files pertaining to this project can be found under `src\boot\ksdk` along with this `README.md`. This project was built atop the Warp Firmware built by Philip Stanley-Marbell and Martin Rinard, referenced below.
 
 This project for describes the designing, coding and building of a functioning prototype of a bicycle speedometer. It makes use of the Freedom development board with the KL03 microchip and with the Warp Firmware on which this code base is based. It also uses a Pimoroni PMW3901 Optical Flow sensor which measures the velocity of the bike relative to the road, as well as the SSD1331 OLED display to show the speed, time and distance data to the cyclist. The device is designed to be mounted on the handlebars of any bike with the Flow sensor pointed at the road.
 
