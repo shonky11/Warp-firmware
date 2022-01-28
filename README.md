@@ -1,174 +1,143 @@
-# Baseline firmware for the [Warp](https://github.com/physical-computation/Warp-hardware) family of hardware platforms
-This is the firmware for the [Warp hardware](https://github.com/physical-computation/Warp-hardware) and its publicly available and unpublished derivatives. This firmware also runs on the Freescale/NXP FRDM KL03 evaluation board which we use for teaching at the University of Cambridge. When running on platforms other than Warp, only the sensors available in the corresponding hardware platform are accessible.
+# 4B25: Embedded Bike Speedometer
+### Shonak Joshi
+### Queens' College, University of Cambridge
+### CrsID: SJ562
 
-**Prerequisites:** You need an arm cross-compiler such as `arm-none-eabi-gcc` installed as well as a working `cmake` (installed, e.g., via `apt-get` on Linux or via [MacPorts](https://www.macports.org) on macOS). On Ubuntu, the package you need is `gcc-arm-none-eabi`. You will also need an installed copy of the SEGGER [JLink commander](https://www.segger.com/downloads/jlink/), `JlinkExe`, which is available for Linux, macOS, and Windows (here are direct links for downloading it for [macOS](https://www.segger.com/downloads/jlink/JLink_MacOSX.pkg), and [Linux tgz 64-bit](https://www.segger.com/downloads/jlink/JLink_Linux_x86_64.tgz)).
+All relevant files pertaining to this project can be found under ##### `src\boot\ksdk` along with this `README.md`. This project was built atop the Warp Firmware built by Philip Stanley-Marbell and Martin Rinard, referenced below.
 
-## 1.  Compiling the Warp firmware
-First, edit [setup.conf](setup.conf) to set the variable `ARMGCC_DIR` and `JLINKPATH`. If your `arm-none-eabi-gcc` is in `/usr/local/bin/arm-none-eabi-gcc`, then you want to set  `ARMGCC_DIR` to `/usr/local`. In the following, this `README.md` will refer to the top of the repository as `$TREEROOT`.
+This project for describes the designing, coding and building of a functioning prototype of a bicycle speedometer. It makes use of the Freedom development board with the KL03 microchip and with the Warp Firmware on which this code base is based. It also uses a Pimoroni PMW3901 Optical Flow sensor which measures the velocity of the bike relative to the road, as well as the SSD1331 OLED display to show the speed, time and distance data to the cyclist. The device is designed to be mounted on the handlebars of any bike with the Flow sensor pointed at the road.
 
-Second, edit [`tools/scripts/glaux.jlink.commands`](tools/scripts/glaux.jlink.commands) and [`tools/scripts/warp.jlink.commands`](tools/scripts/warp.jlink.commands) to replace `<full-path-to-warp-firmware>` with the full path to your Warp firmware directory.
+## Code and Hardware Description
+This project has been adapted from the Warp Firmware project, from which this repository has been forked. It can be found here: https://github.com/physical-computation/Warp-firmware. The full description of all source files can be found there. Only relevant changes have been described below.
 
-Third, build the Warp firmware by
+![Full Prototype Circuit](https://github.com/shonky11/Warp-firmware/blob/master/Circuit%20with%20labels.png)
 
-	make warp
+![Block Diagram](https://github.com/shonky11/Warp-firmware/blob/master/4B25%20Schematic.png)
 
-Fourth, load the Warp firmware to hardware by
+##### `boot.c`
+This is the main file with the core of the firmware and which is run on boot of the Freedom board. It contains the code that is called at runtime, including the boot setup code and the main while loop. It calls upon several other libraries and device drivers. The relevant changes are shown here, where the program for the speedometer runs. A discription of how it works is shown in the comments.
 
-	make load-warp
+```C
+	devSSD1331init(); 			// Initialize Display
+	uint32_t start_time = RTC->TSR;		// Store start time on boot from RTC
+	uint32_t time_elapsed = 0;		// Initialize speed, distance and time variables
+	int16_t time_diff = 0;			// time_diff stores the time difference between subsequent speed readings (needed for integration)
+	int16_t speed = 0;
+	int32_t distance = 0;
+	int16_t distance_km = 0;
 
-To build for the Glaux variant, use `make glaux` and `make load-glaux` in steps three and four instead.
+	// While on loop, executed after booting.
+	while (1){
+		time_diff = RTC->TSR - time_elapsed - start_time;	// Calculate time difference between subsequent speed readings using RTC
+		time_elapsed = RTC->TSR - start_time;			// Calculate current time elapsed
+		
+		// average the speed over 10 readings for greater accuracy
+		int i = 0;
+		speed = 0;
+		for(i = 0; i < 10; ++i){
+			speed += readMotionX();
+			OSA_TimeDelay(10);	
+		}
+		speed /= 10;
 
-The build process copies files from `src/boot/ksdk1.1.0/` into the `build/`, builds, and converts the binary to SREC. See `Warp/src/boot/ksdk1.1.0/README.md` for more. _When editing source, edit the files in `src/boot/ksdk1.1.0/`, not the files in `build` location, since the latter are overwritten during each build._
+		// Calculate distance by continuously adding the latest average speed * time reading (*1.609 to convert to km)
+		// Then divide by seconds per hour (this is done after in a different variable so as to prevent losing the cumulative distance data.
+		distance += speed * 1609 * time_diff / 1000;
+		distance_km = (int16_t)(distance / 3600);
+		
+		display_speed(speed, distance_km, time_elapsed);	// Speed distance and time are then sent to the display driver to be displayed.
+	}	
 
-To connect to the running hardware to see output, you will need two terminal windows. In a separate shell window from the one in which you ran `make load-warp` (or its variants), launch the JLink RTT client<sup>&nbsp;<a href="#Notes">See note 1 below</a></sup>:
+```
 
-	JLinkRTTClient
+##### `CMakeLists.txt`
+The 3 new driver files and their header files: 'devSSD1331.c' and 'devSSD1331.h'; 'devPMW3901.c' and 'devPMW3901.h'; and 'devTEXT.c' and 'devTEXT.h' have all been included here to be built by the compiler.
 
-## 2. Using the Warp firmware on the Freescale FRDMKL03 Board
-The SEGGER firmware allows you to use SEGGER’s JLink software to load your own firmware to the board, even without using their specialized JLink programming cables. You can find the SEGGER firmware at the SEGGER Page for [OpenSDA firmware](https://www.segger.com/products/debug-probes/j-link/models/other-j-links/opensda-sda-v2/).
+##### `warp.h`
+Constant and data structure definitions. The PMW3901 sensor has also been defined here.
 
-To build the Warp firmware for the FRDM KL03, you will need to modify [this line in `src/boot/ksdk1.1.0/config.h`](https://github.com/physical-computation/Warp-firmware/blob/9e7f9e5e3f3c039cc98cbd1e6dfeb6b8fd78c86a/src/boot/ksdk1.1.0/config.h#L55).
+##### `devPMW3901.c`
+This is the driver for the PMW3901 Optical Flow sensor. This sensor uses an SPI connection to the KL03. It measures the speed of a surface moving parallel to it in both x and y directions, measured in rad/s. These x and y speed values are stored in 2 8-bit registers each. This driver reads those values from those registers and converts the speed to miles per hour using an equation descibed in the masters thesis by Marcus Grief. It also writes various values to the many configurationg and calibration registers to get accurate readings. These are taken from the PMW3901 Datasheet, but unfortunately, since information about these registers is Adafruit's proprietary information, there is not much information about what exactly they do. The sensor is able to give readings in miles per hour accurate up to the nearest 0.1mph. Since the display also uses SPI, this has its own Chip Select Pin but shares all other SPI pins with the display. Driving this chip select low while all others are high will read and write to this peripheral.
 
+A detailed description of the various functions and houw the work can be seen in the comments of the code.
 
-## 3.  Editing the firmware
-The firmware is currently all in `src/boot/ksdk1.1.0/`, in particular, see `src/boot/ksdk1.1.0/warp-kl03-ksdk1.1-boot.c` and the per-sensor drivers in `src/boot/ksdk1.1.0/dev*.[c,h]`.
+Marcus Gried Thesis: https://lup.lub.lu.se/luur/download?func=downloadFile&recordOId=8905295&fileOId=8905299
+PMW3901 Datasheet: https://www.codico.com/media/productattach/p/m/pmw3901mb-txqt_-_productbrief_2451186_7.pdf
 
-The firmware builds on the Kinetis SDK. You can find more documentation on the Kinetis SDK in the document [doc/Kinetis SDK v.1.1 API Reference Manual.pdf](https://github.com/physical-computation/Warp-firmware/blob/master/doc/Kinetis%20SDK%20v.1.1%20API%20Reference%20Manual.pdf).
+The relevant registers for measuring the speed is as follows:
+| Register      | Description                         |
+|:-------------:|:-----------------------------------:|
+| 0x03          | Speed in X direction (Lower Byte)   |
+| 0x04          | Speed in X direction (Higher Byte)  |
+| 0x05          | Speed in Y direction (Lower Byte)   |
+| 0x06          | Speed in Y direction (Higher Byte)  |
 
-The firmware is designed for the Warp and Glaux hardware platforms, but will also run on the Freescale FRDM KL03 development board. In that case, the only sensor driver which is relevant is the one for the MMA8451Q. For more details about the structure of the firmware, see [src/boot/ksdk1.1.0/README.md](src/boot/ksdk1.1.0/README.md).
+The wiring for the PMW3901 to the development board is as follows:
+| KL03          | PMW3901            |
+|:-------------:|:------------------:|
+| 5v pin        | 3-5v pin           |
+| Gnd           | Gnd                |
+| PTA-5         | Chip Select (CS)   |
+| PTA-9         | SPI Clock (SCK)    |
+| PTA-8         | MOSI pin           |
+| PTA-6         | MISO pin           |
+| 5V pin        | Interrupt Pin      |
 
-## 4.  Interacting with the boot menu
-When the firmware boots, you will be dropped into a menu with a rich set of commands. The Warp boot menu allows you to conduct most of the experiments you will likely need without modifying the firmware:
-````
-[ *				W	a	r	p	(rev. b)			* ]
-[  				      Cambridge / Physcomplab   				  ]
+The functions `getMotionX()` and `getMotionY()` are called by other programs to get the X and Y velocities in mph * 10 (i.e. 12.4 mph is returned as 124)
 
-	Supply=0mV,	Default Target Read Register=0x00
-	I2C=200kb/s,	SPI=200kb/s,	UART=1kb/s,	I2C Pull-Up=32768
+![Images of my Pimoroni PMW3901](https://github.com/shonky11/Warp-firmware/blob/master/270549746_327877332386183_326424379567401093_n.jpg)
 
-	SIM->SCGC6=0x20000001		RTC->SR=0x10		RTC->TSR=0x5687132B
-	MCG_C1=0x42			MCG_C2=0x00		MCG_S=0x06
-	MCG_SC=0x00			MCG_MC=0x00		OSC_CR=0x00
-	SMC_PMPROT=0x22			SMC_PMCTRL=0x40		SCB->SCR=0x00
-	PMC_REGSC=0x00			SIM_SCGC4=0xF0000030	RTC->TPR=0xEE9
+##### `devPMW3901.h`
+The header file for the PMW3901 driver.
 
-	0s in RTC Handler to-date,	0 Pmgr Errors
-Select:
-- 'a': set default sensor.
-- 'b': set I2C baud rate.
-- 'c': set SPI baud rate.
-- 'd': set UART baud rate.
-- 'e': set default register address.
-- 'f': write byte to sensor.
-- 'g': set default SSSUPPLY.
-- 'h': powerdown command to all sensors.
-- 'i': set pull-up enable value.
-- 'j': repeat read reg 0x00 on sensor #3.
-- 'k': sleep until reset.
-- 'l': send repeated byte on I2C.
-- 'm': send repeated byte on SPI.
-- 'n': enable SSSUPPLY.
-- 'o': disable SSSUPPLY.
-- 'p': switch to VLPR mode.
-- 'r': switch to RUN mode.
-- 's': power up all sensors.
-- 't': dump processor state.
-- 'u': set I2C address.
-- 'x': disable SWD and spin for 10 secs.
-- 'z': dump all sensors data.
-Enter selection>
-````
-### Double echo characters
-By default on Unix, you will likely see characters you enter shown twice. To avoid this, do the following:
-- Make sure you are running `bash` (and not `csh`)
-- Execute `stty -echo` at the command line in the terminal window in which you will run the `JLinkRTTClient`.
+##### `devSSD1331.c`
+This is the display driver code for the SSD1331 OLED display. It also uses an SPI connection and hence must be written to using a different chip select pin. It displays data by writing to the various registers of the display driver. The `devSSD1331init()` function initiaializes the display by writing the necessary values to the configuration and calibration registers of the SSD1331. These values and registers are taken from the datasheet linked below. The display is the initialized with a splash screen that displays a bicycle. The function `display_speed()` is used to display the speed, distance and time when passed those parameters. It is passed these parameters in the while loop of boot.c, which in turn come from devPMW3901's `getMotionX()` function. `writeCommand()` writes a value to a register of the display over SPI, and `WriteBuffer()` writes multiple of these values to a group of adjacent registers. `writePixel()` is also writes to the display over SPI, but first sets the DC pin high instead of low which allows indixidual pixels to be set to different colours.
 
-### Introduction to using the menu
-You can probe around the menu to figure out what to do. In brief, you will likely want:
+SSD1331 Datasheet: https://cdn-shop.adafruit.com/datasheets/SSD1331_1.2.pdf
 
-1. Menu item `b` to set the I2C baud rate.
+This display driver utilizes the `devText` program to write individual characters to the display. This is further described below.
 
-2. Menu item `r` to switch the processor from low-power mode (2MHz) to "run" mode (48MHz).
+The wiring for the PMW3901 to the development board is as follows:
+| KL03          | PMW3901            |
+|:-------------:|:------------------:|
+| 5v pin        | 3-5v pin           |
+| Gnd           | Gnd                |
+| PTB-11        | Chip Select (CS)   |
+| PTA-9         | SPI Clock (SCK)    |
+| PTA-8         | MOSI pin           |
+| PTB-0         | Reset              |
+| PTA-12        | DC pin             |
 
-3. Menu item `g` to set sensor supply voltage.
+![Images of OLED diplaying speed](https://github.com/shonky11/Warp-firmware/blob/master/270188426_1355565451568680_1188295997622684602_n.jpg)
 
-4. Menu item `n` to turn on the voltage regulators.
+![Images of OLED diplaying distance](https://github.com/shonky11/Warp-firmware/blob/master/270860052_1294970877674596_5208618013091382899_n.jpg)
 
-5. Menu item `z` to repeatedly read from all the sensors whose drivers are compiled into the build.
+![Images of OLED diplaying time](https://github.com/shonky11/Warp-firmware/blob/master/270044366_218357750501230_1896227776930197410_n.jpg)
 
-*NOTE: In many cases, the menu expects you to type a fixed number of characters (e.g., 0000 or 0009 for zero and nine)<sup>&nbsp;<a href="#Notes">See note 1 below</a></sup>. If using the `JLinkRTTClient`, the menu interface eats your characters as you type them, and you should not hit RETURN after typing in text. On the other hand, if using `telnet` you have to hit return.*
+##### `devSSD1331.h`
+The header file for the SSD1331 driver.
 
-If you see repeated characters, you can set your terminal to not echo typed characters using `stty -echo`.
+##### `devTEXT.c`
+This is a library I adapted for the Warp Firmware from the MBED library for the SSD1331 written in C++. It uses a font with each character encoded as a 6x8 bit matrix. with a 1 where a pixel is on and 0 where off. The function `PutChar()` places a character at a given x and y coordinate on the screen by itterating over the 6x8 pixel matrix and calling writePixel from the display driver to turn them on. Initially writes to the display were very slow as even pixels that were off were written to set it to the background colour. By changing it to skip these pixels and clear the screen when updating it with new characters, the write speed is significantly optimized. It now writes in about 0.2 seconds which is sufficient for these purposes. I also removed delays from writing chip select to low which significantly improved write time too. `PutChar()` calls `pixel()` to write a particular pixel with a colour. This in turn calls the `writePixel()` function in the driver.
 
-### Example 1: Dump all registers for a single sensor
--	`b` (set the I2C baud rate to `0300` for 300 kb/s).
--	`g` (set sensor supply voltage to `3000` for 3000mV sensor supply voltage).
--	`n` (turn on the sensor supply regulators).
--	`j` (submenu for initiating a fixed number of repeated reads from a sensor):
-````
-Enter selection> j
+MBED SSD1331 library: https://os.mbed.com/users/star297/code/ssd1331/
 
-    Auto-increment from base address 0x01? ['0' | '1']> 0
-    Chunk reads per address (e.g., '1')> 1
-    Chatty? ['0' | '1']> 1
-    Inter-operation spin delay in milliseconds (e.g., '0000')> 0000
-    Repetitions per address (e.g., '0000')> 0000
-    Maximum voltage for adaptive supply (e.g., '0000')> 2500
-    Reference byte for comparisons (e.g., '3e')> 00
-````
+##### `devINA219.c`
+This is a library for the Texas Instruments INA219 Current, Voltage and Power meter which uses an I2C connection. It is included here as it was used to measure the voltage drops and total current draw of the device and its various components.
 
-### Example 2: Stream data from all sensors
-This will perpetually stream data from the 90+ sensor dimensions at a rate of about 90-tuples per second. Use the following command sequence:
--	`b` (set the I2C baud rate to `0300` for 300 kb/s).
--	`r` (enable 48MHz "run" mode for the processor).
--	`g` (set sensor supply voltage to `3000` for 3000mV sensor supply voltage).
--	`n` (turn on the sensor supply regulators).
--	`z` (start to stream data from all sensors that can run at the chosen voltage and baud rate).
+##### `devINA219.h`
+This is the header file for the INA219 driver.
 
-## 5.  To update your fork
-From your local clone:
+## Acknowledgements
+This project was built on top of the Warp Firmware built by Philip Stanley-Marbell and Martin Rinard.
 
-	git remote add upstream https://github.com/physical-computation/Warp-firmware.git
-	git fetch upstream
-	git pull upstream master
-
-----
-
-### If you use Warp in your research, please cite it as:
 Phillip Stanley-Marbell and Martin Rinard. “A Hardware Platform for Efficient Multi-Modal Sensing with Adaptive Approximation”. ArXiv e-prints (2018). arXiv:1804.09241.
 
-**BibTeX:**
-```
-@ARTICLE{1804.09241,
-	author = {Stanley-Marbell, Phillip and Rinard, Martin},
-	title = {A Hardware Platform for Efficient Multi-Modal 
-	Sensing with Adaptive Approximation},
-	journal = {ArXiv e-prints},
-	archivePrefix = {arXiv},
-	eprint = {1804.09241},
-	year = 2018,
-}
-```
 Phillip Stanley-Marbell and Martin Rinard. “Warp: A Hardware Platform for Efficient Multi-Modal Sensing with Adaptive Approximation”. IEEE Micro, Volume 40 , Issue 1 , Jan.-Feb. 2020.
 
-**BibTeX:**
-```
-@ARTICLE{8959350,
-	author = {P. {Stanley-Marbell} and M. {Rinard}},
-	title = {Warp: A Hardware Platform for Efficient Multi-Modal
-	Sensing with Adaptive Approximation},
-	journal = {IEEE Micro},
-	year = {2020},
-	volume = {40},
-	number = {1},
-	pages = {57-66},
-	ISSN = {1937-4143},
-	month = {Jan},
-}
-```
-### Acknowledgements
-This research is supported by an Alan Turing Institute award TU/B/000096 under EPSRC grant EP/N510129/1, by Royal Society grant RG170136, and by EPSRC grants EP/P001246/1 and EP/R022534/1.
+The equation to calculate the ground velocity from the radial velocity measured by the PMW3901 was taken from Marcus Gried's Master's Thesis
 
-----
-### Notes
-<sup>1</sup>&nbsp; On some Unix platforms, the `JLinkRTTClient` has a double echo of characters you type in. You can prevent this by configuring your terminal program to not echo the characters you type. To achieve this on `bash`, use `stty -echo` from the terminal. Alternatively, rather than using the `JLinkRTTClient`, you can use a `telnet` program: `telnet localhost 19021`. This avoids the JLink RTT Client's "double echo" behavior but you will then need a carriage return (&crarr;) for your input to be sent to the board. Also see [Python SEGGER RTT library from Square, Inc.](https://github.com/square/pylink/blob/master/examples/rtt.py) (thanks to [Thomas Garry](https://github.com/tidge27) for the pointer).
+Greiff, M., 2017. Modelling and Control of the Crazyflie Quadrotor for Aggressive and Autonomous Flight by Optical Flow Driven State Estimation. MSc Thesis. Lund University.
+
+And the text writing functionality for the display was adapted from the MBED library below:
+https://os.mbed.com/users/star297/code/ssd1331/
