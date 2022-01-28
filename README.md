@@ -97,8 +97,8 @@ SSD1331 Datasheet: https://cdn-shop.adafruit.com/datasheets/SSD1331_1.2.pdf
 
 This display driver utilizes the `devText` program to write individual characters to the display. This is further described below.
 
-The wiring for the PMW3901 to the development board is as follows:
-| KL03          | PMW3901            |
+The wiring for the SSD1331 OLED Display to the development board is as follows:
+| KL03          | SSD1331            |
 |:-------------:|:------------------:|
 | 5v pin        | 3-5v pin           |
 | Gnd           | Gnd                |
